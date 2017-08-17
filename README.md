@@ -1,2 +1,2 @@
-# FFXIV-DPS
-Find highest DPS rotations in FFXIV
+ # FFXIV-DPS
+Find highest DPS rotations in FFXIV using machine learning.

@@ -55,7 +55,7 @@ namespace GeneticSearchAlgorithm
                     coolDowns[ability.Name] = time + ability.Cooldown;
                     
                     // Damage
-                    int newPotency = ability.Potency(s);
+                    double newPotency = ability.Potency(s);
                     totalPotency += newPotency;
 
                     // Status changes
@@ -64,7 +64,7 @@ namespace GeneticSearchAlgorithm
                     // Debug
                     if (print)
                     {
-                        Console.WriteLine($"{ability.Name} +{newPotency} = {totalPotency}; {s.ToString()}");
+                        Console.WriteLine($"{ability.Name} +{newPotency} = {totalPotency.ToString("######.##")}; {s.ToString()}");
                     }
 
                     // Increment the clock

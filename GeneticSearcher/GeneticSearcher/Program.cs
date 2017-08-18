@@ -24,8 +24,8 @@ namespace GeneticSearcher
             var population = new Population(50, 70, chromosome);
 
             var ga = new GeneticAlgorithm(population, fitness, selection, crossover, mutation);
-            //ga.Termination = new GenerationNumberTermination(10000);
-            ga.Termination = new FitnessStagnationTermination(10000);
+            ga.Termination = new GenerationNumberTermination(10000);
+            //ga.Termination = new FitnessStagnationTermination(10000);
             ga.Reinsertion = new ElitistReinsertion();
 
             Console.WriteLine("Running...");

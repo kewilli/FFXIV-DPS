@@ -19,7 +19,7 @@ namespace GeneticSearchAlgorithm
             double time = 0;
             double nextManaTick = 0;
             double totalPotency = 0;
-            Status s = new Status();
+            Status s = new Status(3, 3);
 
             Dictionary<string, double> coolDowns = new Dictionary<string, double>();
 
@@ -30,13 +30,12 @@ namespace GeneticSearchAlgorithm
             {
                 var ability = (Ability)(rotation.GetGene(i).Value);
 
-                // Do we have more mana to play with?
-
                 //
                 // TODO: No mana regen while in Astral Fire!!
                 //
 
-                if (time > nextManaTick)
+                // Do we have more mana to play with?
+                if (time > nextManaTick && s.AstralFire == 0)
                 {
                     while (time > nextManaTick)
                     {
@@ -61,14 +60,24 @@ namespace GeneticSearchAlgorithm
                     // Status changes
                     ability.StatusEffect(s);
 
+                    // Increment the clock
+                    time += ability.CastTime;
+
                     // Debug
                     if (print)
                     {
-                        Console.WriteLine($"{ability.Name} +{newPotency} = {totalPotency.ToString("######.##")}; {s.ToString()}");
+                        Console.WriteLine($"{ability.Name, 10} +{newPotency,4} = {totalPotency.ToString("######.##"),8}; Time + {ability.CastTime,4} = {time,5}; {s.ToString()}");
                     }
+                }
+                else
+                {
+                    // You failed!
+                    time += 5.0;
 
-                    // Increment the clock
-                    time += ability.CastTime;
+                    if (print)
+                    {
+                        Console.WriteLine($"{ability.Name,10} - Failed to cast!");
+                    }
                 }
             }
 

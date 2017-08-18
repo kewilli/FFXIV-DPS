@@ -4,7 +4,7 @@ namespace GeneticSearchAlgorithm
 {
     public class Status
     {
-        public const int MaxMp = 1000;
+        public const int MaxMp = 2156;
         public const int MaxTp = 100;
 
         private int m_umbralIce;
@@ -87,8 +87,10 @@ namespace GeneticSearchAlgorithm
                 {
                     return (int)(Status.MaxMp * 0.62);
                 }
-
-                throw new Exception("Bad umbral ice!");
+                else
+                {
+                    throw new AstralFireUmbralIceException(m_umbralIce, true);
+                }
             }
             else
             {
@@ -99,7 +101,7 @@ namespace GeneticSearchAlgorithm
 
         public override string ToString()
         {
-            return $"MP: {Mp}, TP: {Tp}, Fire: {AstralFire}, Ice: {UmbralIce}";
+            return $"MP: {Mp,4}, TP: {Tp,4}, Fire: {AstralFire}, Ice: {UmbralIce}";
         }
     }
 }

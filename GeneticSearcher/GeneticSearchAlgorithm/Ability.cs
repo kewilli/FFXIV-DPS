@@ -67,6 +67,7 @@ namespace GeneticSearchAlgorithm
     public enum AbilityType
     {
         Ability,
+        Instant,
         Spell
     }
 
@@ -76,25 +77,25 @@ namespace GeneticSearchAlgorithm
         {
             Blizzard = new Ability(
                 nameof(Blizzard),
-                s => PotencyHelper.IceMp(s, Status.MaxMp / 12),
+                s => PotencyHelper.IceMp(s, 66),
                 0,
                 AbilityType.Spell,
                 1,
                 2.5,
                 2.5,
                 s => s.IncreaseUmbralIce(),
-                s => PotencyHelper.IcePotency(s, 100));
+                s => PotencyHelper.IcePotency(s, 180));
 
             Fire = new Ability(
                 nameof(Fire),
-                s => PotencyHelper.FireMp(s, Status.MaxMp / 12),
+                s => PotencyHelper.FireMp(s, 167),
                 0,
                 AbilityType.Spell,
                 2,
                 2.5,
                 2.5,
                 s => s.IncreaseAstralFire(),
-                s => PotencyHelper.FirePotency(s, 100));
+                s => PotencyHelper.FirePotency(s, 180));
 
             Transpose = new Ability(
                 nameof(Transpose),
@@ -107,11 +108,23 @@ namespace GeneticSearchAlgorithm
                 s => s.SwapIceFire(1),
                 s => 0);
 
+            Scathe = new Ability(
+                nameof(Scathe),
+                s => 143,
+                0,
+                AbilityType.Ability,
+                15,
+                2.5,
+                2.5,
+                s => { return; },
+                s => 120); // 100 80%, 200 20%
+
             AllAbilities = new List<Ability>()
             {
                 Blizzard,
                 Fire,
-                Transpose
+                Transpose,
+                Scathe
             };
         }
 
@@ -120,6 +133,7 @@ namespace GeneticSearchAlgorithm
         public static Ability Blizzard;
         public static Ability Fire;
         public static Ability Transpose;
+        public static Ability Scathe;
     }
 
     public static class PotencyHelper

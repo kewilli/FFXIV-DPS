@@ -5,13 +5,14 @@ import numpy as np
 import math
 import os
 import random
-import BlmDamage
+import BLM
+from cntk import distributed
 
 import cntk as C
 
-isFast = False
+isFast = True
 
-env = BlmDamage.BlmDamage(1)
+env = BLM.BLM(1)
 
 STATE_COUNT = env.observation_space.shape
 ACTION_COUNT = env.action_space.n
@@ -21,7 +22,7 @@ REWARD_TARGET = 30 if isFast else 200
 # Averaged over these these many episodes
 BATCH_SIZE_BASELINE = 20 if isFast else 50
 
-H = 4 # hidden layer size
+H = 64 # hidden layer size
 
 class Brain:
     def __init__(self):
@@ -79,14 +80,14 @@ class Memory:   # stored as ( s, a, r, s_ )
         return random.sample(self.samples, n)
 
 
-MEMORY_CAPACITY = 100000
-BATCH_SIZE = 1
+MEMORY_CAPACITY = 100000 # KBW: Number of steps saved
+BATCH_SIZE = 1 # KBW: Relative amount of memory to reserve?? Keeping it low seems faster.
 
-GAMMA = 0.97 # discount factor
+GAMMA = 0.95
 
-MAX_EPSILON = 1
-MIN_EPSILON = 0.01 # stay a bit curious even when getting old
-LAMBDA = 0.0001    # speed of decay
+MAX_EPSILON = 1 # KBW: Don't change!
+MIN_EPSILON = 0.00 # KBW: keep non-zero to stay a bit curious even when getting old
+LAMBDA = 0.01    # exponent of speed of decay
 
 class Agent:
     steps = 0
@@ -105,7 +106,7 @@ class Agent:
     def observe(self, sample):  # in (s, a, r, s_) format
         self.memory.add(sample)
 
-        # slowly decrease Epsilon based on our eperience
+        # slowly decrease Epsilon based on our experience
         self.steps += 1
         self.epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * math.exp(-LAMBDA * self.steps)
 
@@ -143,9 +144,10 @@ class Agent:
         self.brain.train(x, y)
 
 
-TOTAL_EPISODES = 3000 if isFast else 6000
+TOTAL_EPISODES = 3000 if isFast else 10000
 
 def run(agent):
+    start = len(agent.memory.samples)
     s = env.reset()
     R = 0
 
@@ -165,17 +167,17 @@ def run(agent):
         R += r
 
         if done:
-            return R
+            return R, start
 
 agent = Agent()
 
 episode_number = 0
 reward_sum = 0
 while episode_number < TOTAL_EPISODES:
-    reward_sum += run(agent)
+    reward, memoryStart = run(agent)
+    reward_sum += reward
     episode_number += 1
     if episode_number % BATCH_SIZE_BASELINE == 0:
         print('Episode: %d, Average reward for episode %f.' % (episode_number,
                                                                reward_sum / BATCH_SIZE_BASELINE))
-        print('Task solved in %d episodes' % episode_number)
         reward_sum = 0

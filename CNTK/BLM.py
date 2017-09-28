@@ -15,10 +15,11 @@ class BLM(gym.Env):
 		Fire = 2
 
 	class Ability:
-		def __init__(self, name, potency, mana, stateChanger, elementEnum):
+		def __init__(self, name, potency, mana, castTime, stateChanger, elementEnum):
 			self.name = name
 			self.potency = potency
 			self.mana = mana
+			self.castTime = castTime
 			self.stateChanger = stateChanger
 			self.elementEnum = elementEnum
 
@@ -123,15 +124,15 @@ class BLM(gym.Env):
 			return state
 
 	ABILITIES = [
-            Ability("Blizzard", 180, 480, Helper.UmbralIceIncrease, DamageType.Ice),
-            Ability("Fire", 180, 1200, Helper.AstralFireIncrease, DamageType.Fire),
-			Ability("Transpose", 0, 0, Helper.SwapAstralUmbral, DamageType.Neither)]
+            Ability("Blizzard", 180, 480, 2.5, Helper.UmbralIceIncrease, DamageType.Ice),
+            Ability("Fire", 180, 1200, 2.5, Helper.AstralFireIncrease, DamageType.Fire),
+			Ability("Transpose", 0, 0, 0.75, Helper.SwapAstralUmbral, DamageType.Neither)]
 
 	def __init__(self, maxUmbralAstral):
 		self.BUFFS = []
 		self.MAXTIME = 30
 		self.initialState = np.array([0] * (len(BLM.ABILITIES) + len(self.BUFFS)) + [BLM.MAXMANA] + [0])
-		self.iteration = 0
+		self.timer = 0
 		self.state = self.initialState.copy()
 		BLM.MAXUMBRALASTRAL = maxUmbralAstral
 
@@ -142,7 +143,7 @@ class BLM(gym.Env):
 		self.observation_space = spaces.MultiDiscrete([[0,1]] * (len(BLM.ABILITIES) + len(self.BUFFS)) + [[0, BLM.MAXMANA]] + [[-3,3]])
 
 	def _reset(self):
-		self.iteration = 0
+		self.timer = 0
 		self.state = self.initialState.copy()
 		print("RESET: %d, %d" % (BLM.Helper.GetMana(self.state), BLM.Helper.GetAstralUmbral(self.state)))
 		return self.state
@@ -151,6 +152,9 @@ class BLM(gym.Env):
 		assert self.action_space.contains(action), "Invalid action!"
 
 		ability = BLM.ABILITIES[action]
+
+		# Increase the time
+		self.timer += ability.castTime
 
 		# Apply ability and get reward
 		potency, self.state = ability.apply(self.state)
@@ -164,10 +168,9 @@ class BLM(gym.Env):
 		return self.state, potency, done, {"Name": ability.name}
 
 	def _isDone(self):
-		self.iteration += 1
 		mana = BLM.Helper.GetMana(self.state)
-		if mana < 0 or self.iteration >= self.MAXTIME:
-			print("DONE: Mana = %d, Iteration = %d" % (mana, self.iteration))
+		if mana < 0 or self.timer >= self.MAXTIME:
+			print("DONE: Mana = %d, Timer = %d" % (mana, self.timer))
 			return True
 		return False
 

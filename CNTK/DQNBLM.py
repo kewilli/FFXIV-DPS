@@ -87,7 +87,7 @@ GAMMA = 0.95
 
 MAX_EPSILON = 1 # KBW: Don't change!
 MIN_EPSILON = 0.00 # KBW: keep non-zero to stay a bit curious even when getting old
-LAMBDA = 0.01    # exponent of speed of decay
+LAMBDA = 0.001    # exponent of speed of decay
 
 class Agent:
     steps = 0
@@ -166,6 +166,7 @@ def run(agent):
         R += r
 
         if done:
+            print("  REWARD: %d" % R)
             return R
 
 agent = Agent()

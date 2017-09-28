@@ -7,6 +7,7 @@ class BLM(gym.Env):
 	"""This class creates a pseudo environment for expressing BLM potency in FFXIV."""
 
 	MAXMANA = 15480
+	MANATICKTIMING = 3
 	MAXUMBRALASTRAL = 0
 	
 	class DamageType(Enum):
@@ -14,8 +15,61 @@ class BLM(gym.Env):
 		Ice = 1
 		Fire = 2
 
+	class Helper:
+
+		def GetMana(self, state):
+			return state[-2]
+
+		def SetMana(self, state, newMana):
+			state[-2] = newMana
+
+		def RegenTick(self, state):
+			astralUmbral = self.GetAstralUmbral(state)
+			if (astralUmbral == 0):
+				state = self.UpdateMana(state, BLM.MAXMANA * -0.02)
+			elif (astralUmbral == -1):
+				state = self.UpdateMana(state, BLM.MAXMANA * -0.32)
+			elif (astralUmbral == -2):
+				state = self.UpdateMana(state, BLM.MAXMANA * -0.47)
+			elif (astralUmbral == -3):
+				state = self.UpdateMana(state, BLM.MAXMANA * -0.62)
+			return state
+
+		def UpdateMana(self, state, change):
+			mana = self.GetMana(state)
+			self.SetMana(state, min(mana - change, BLM.MAXMANA))
+			return state
+
+		def GetAstralUmbral(self, state):
+			return state[-1] # Astral/Umbral is the last state
+
+		def AstralFireIncrease(self, state):
+			astralUmbral = self.GetAstralUmbral(state)
+			if (astralUmbral >= 0):
+				state[-1] = min(BLM.MAXUMBRALASTRAL, astralUmbral + 1)
+			else:
+				state[-1] = 0
+			return state
+
+		def UmbralIceIncrease(self, state):
+			astralUmbral = self.GetAstralUmbral(state)
+			if (astralUmbral <= 0):
+				state[-1] = max(-BLM.MAXUMBRALASTRAL, astralUmbral - 1)
+			else:
+				state[-1] = 0
+			return state
+
+		def SwapAstralUmbral(self, state):
+			astralUmbral = self.GetAstralUmbral(state) 
+			if (astralUmbral < 0):
+				state[-1] = 1
+			elif (astralUmbral > 0):
+				state[-1] = -1
+			return state
+
 	class Ability:
-		def __init__(self, name, potency, mana, castTime, stateChanger, elementEnum):
+		def __init__(self, name, potency, mana, castTime, stateChanger, elementEnum, helper):
+			self.HELPER = helper
 			self.name = name
 			self.potency = potency
 			self.mana = mana
@@ -27,17 +81,17 @@ class BLM(gym.Env):
 			scaledPotency = self.potency
 			if (self.elementEnum == BLM.DamageType.Fire):
 				scaledPotency = self.firePotency(state)
-				state = BLM.Helper.UpdateMana(state, self.fireMana(state))
+				state = self.HELPER.UpdateMana(state, self.fireMana(state))
 			elif (self.elementEnum == BLM.DamageType.Ice):
 				scaledPotency = self.icePotency(state)
-				state = BLM.Helper.UpdateMana(state, self.iceMana(state))
+				state = self.HELPER.UpdateMana(state, self.iceMana(state))
 			else:
-				state = BLM.Helper.UpdateMana(state, -self.mana)
+				state = self.HELPER.UpdateMana(state, -self.mana)
 
 			return scaledPotency, self.stateChanger(state)
 
 		def firePotency(self, state):
-			astralUmbral = BLM.Helper.GetAstralUmbral(state)
+			astralUmbral = self.HELPER.GetAstralUmbral(state)
 			if (astralUmbral == 0):
 				return self.potency
 			elif (astralUmbral == 1):
@@ -54,7 +108,7 @@ class BLM(gym.Env):
 				return self.potency * 0.7
 
 		def icePotency(self, state):
-			astralUmbral = BLM.Helper.GetAstralUmbral(state)
+			astralUmbral = self.HELPER.GetAstralUmbral(state)
 			if (astralUmbral <= 0):
 				return self.potency
 			elif (astralUmbral == 1):
@@ -65,7 +119,7 @@ class BLM(gym.Env):
 				return self.potency * 0.7
 
 		def fireMana(self, state):
-			astralUmbral = BLM.Helper.GetAstralUmbral(state)
+			astralUmbral = self.HELPER.GetAstralUmbral(state)
 			if (astralUmbral > 0):
 				return self.mana * 2
 			elif (astralUmbral == 0):
@@ -76,7 +130,7 @@ class BLM(gym.Env):
 				return self.mana / 4.0
 
 		def iceMana(self, state):
-			astralUmbral = BLM.Helper.GetAstralUmbral(state)
+			astralUmbral = self.HELPER.GetAstralUmbral(state)
 			if (astralUmbral <= 0):
 				return self.mana
 			elif (astralUmbral == 1):
@@ -84,91 +138,62 @@ class BLM(gym.Env):
 			elif (astralUmbral >= 2):
 				return self.mana / 4.0
 
-	class Helper:
-		def GetMana(state):
-			return state[-2]
-
-		def SetMana(state, newMana):
-			state[-2] = newMana
-
-		def UpdateMana(state, change):
-			mana = BLM.Helper.GetMana(state)
-			BLM.Helper.SetMana(state, min(mana - change, BLM.MAXMANA))
-			return state
-
-		def GetAstralUmbral(state):
-			return state[-1] # Astral/Umbral is the last state
-
-		def AstralFireIncrease(state):
-			astralUmbral = BLM.Helper.GetAstralUmbral(state)
-			if (astralUmbral >= 0):
-				state[-1] = min(BLM.MAXUMBRALASTRAL, astralUmbral + 1)
-			else:
-				state[-1] = 0
-			return state
-
-		def UmbralIceIncrease(state):
-			astralUmbral = BLM.Helper.GetAstralUmbral(state)
-			if (astralUmbral <= 0):
-				state[-1] = max(-BLM.MAXUMBRALASTRAL, astralUmbral - 1)
-			else:
-				state[-1] = 0
-			return state
-
-		def SwapAstralUmbral(state):
-			astralUmbral = BLM.Helper.GetAstralUmbral(state) 
-			if (astralUmbral < 0):
-				state[-1] = 1
-			elif (astralUmbral > 0):
-				state[-1] = -1
-			return state
-
-	ABILITIES = [
-            Ability("Blizzard", 180, 480, 2.5, Helper.UmbralIceIncrease, DamageType.Ice),
-            Ability("Fire", 180, 1200, 2.5, Helper.AstralFireIncrease, DamageType.Fire),
-			Ability("Transpose", 0, 0, 0.75, Helper.SwapAstralUmbral, DamageType.Neither)]
 
 	def __init__(self, maxUmbralAstral):
-		self.BUFFS = []
-		self.MAXTIME = 30
-		self.initialState = np.array([0] * (len(BLM.ABILITIES) + len(self.BUFFS)) + [BLM.MAXMANA] + [0])
-		self.timer = 0
-		self.state = self.initialState.copy()
+		# "Globals"
 		BLM.MAXUMBRALASTRAL = maxUmbralAstral
+		self.BUFFS = []
+		self.MAXTIME = 100
+		self.HELPER = BLM.Helper()		
+		self.ABILITIES = [
+			BLM.Ability("Blizzard", 180, BLM.MAXMANA / 12, 2.5, self.HELPER.UmbralIceIncrease, BLM.DamageType.Ice, self.HELPER),
+			BLM.Ability("Fire", 180, BLM.MAXMANA / 12, 2.5, self.HELPER.AstralFireIncrease, BLM.DamageType.Fire, self.HELPER), #TODO: Was 1200
+			BLM.Ability("Transpose", 0, 0, 0.75, self.HELPER.SwapAstralUmbral, BLM.DamageType.Neither, self.HELPER)]
+		
+		self.initialState = np.array([0] * (len(self.ABILITIES) + len(self.BUFFS)) + [BLM.MAXMANA] + [0])
+
+		self.state = self._reset()
 
 		# What the learner can pick between
-		self.action_space = spaces.Discrete(len(BLM.ABILITIES))
+		self.action_space = spaces.Discrete(len(self.ABILITIES))
 
 		# What the learner can see to make a choice (cooldowns and buffs)
-		self.observation_space = spaces.MultiDiscrete([[0,1]] * (len(BLM.ABILITIES) + len(self.BUFFS)) + [[0, BLM.MAXMANA]] + [[-3,3]])
+		self.observation_space = spaces.MultiDiscrete([[0,1]] * (len(self.ABILITIES) + len(self.BUFFS)) + [[0, BLM.MAXMANA]] + [[-3,3]])
 
 	def _reset(self):
 		self.timer = 0
+		self.nextManaTick = BLM.MANATICKTIMING - 0.1
 		self.state = self.initialState.copy()
-		print("RESET: %d, %d" % (BLM.Helper.GetMana(self.state), BLM.Helper.GetAstralUmbral(self.state)))
+		print("RESET: %d, %d" % (self.HELPER.GetMana(self.state), self.HELPER.GetAstralUmbral(self.state)))
 		return self.state
 
 	def _step(self, action):
 		assert self.action_space.contains(action), "Invalid action!"
 
-		ability = BLM.ABILITIES[action]
+		ability = self.ABILITIES[action]
 
 		# Increase the time
 		self.timer += ability.castTime
 
+		# Mana regen
+		if self.timer > self.nextManaTick and self.HELPER.GetAstralUmbral(self.state) <= 0:
+			while self.timer > self.nextManaTick:
+				self.state = self.HELPER.RegenTick(self.state)
+				self.nextManaTick += BLM.MANATICKTIMING
+
 		# Apply ability and get reward
 		potency, self.state = ability.apply(self.state)
-		print("%s -> %d, %d" % (ability.name, BLM.Helper.GetMana(self.state), BLM.Helper.GetAstralUmbral(self.state)))
+		print("%s -> %d, %d" % (ability.name, self.HELPER.GetMana(self.state), self.HELPER.GetAstralUmbral(self.state)))
 
 		# Update observation (CDs and buffs)
 		# state = self.state
 
 		done = self._isDone()
 
-		return self.state, potency, done, {"Name": ability.name}
+		return self.state, potency if not done else 0, done, {"Name": ability.name}
 
 	def _isDone(self):
-		mana = BLM.Helper.GetMana(self.state)
+		mana = self.HELPER.GetMana(self.state)
 		if mana < 0 or self.timer >= self.MAXTIME:
 			print("DONE: Mana = %d, Timer = %d" % (mana, self.timer))
 			return True

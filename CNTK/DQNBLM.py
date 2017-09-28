@@ -12,7 +12,7 @@ import cntk as C
 
 isFast = True
 
-env = BLM.BLM(1)
+env = BLM.BLM(2)
 
 STATE_COUNT = env.observation_space.shape
 ACTION_COUNT = env.action_space.n
@@ -147,7 +147,6 @@ class Agent:
 TOTAL_EPISODES = 3000 if isFast else 10000
 
 def run(agent):
-    start = len(agent.memory.samples)
     s = env.reset()
     R = 0
 
@@ -167,14 +166,14 @@ def run(agent):
         R += r
 
         if done:
-            return R, start
+            return R
 
 agent = Agent()
 
 episode_number = 0
 reward_sum = 0
 while episode_number < TOTAL_EPISODES:
-    reward, memoryStart = run(agent)
+    reward = run(agent)
     reward_sum += reward
     episode_number += 1
     if episode_number % BATCH_SIZE_BASELINE == 0:

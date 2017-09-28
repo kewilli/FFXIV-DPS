@@ -165,7 +165,11 @@ class BLM(gym.Env):
 
 	def _isDone(self):
 		self.iteration += 1
-		return BLM.Helper.GetMana(self.state) < 0 or self.iteration >= self.MAXTIME
+		mana = BLM.Helper.GetMana(self.state)
+		if mana < 0 or self.iteration >= self.MAXTIME:
+			print("DONE: Mana = %d, Iteration = %d" % (mana, self.iteration))
+			return True
+		return False
 
 
 	class Buff:

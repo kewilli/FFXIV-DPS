@@ -12,7 +12,7 @@ import cntk as C
 
 isFast = True
 
-env = BLM.BLM(2)
+env = BLM.BLM(3)
 
 STATE_COUNT = env.observation_space.shape
 ACTION_COUNT = env.action_space.n

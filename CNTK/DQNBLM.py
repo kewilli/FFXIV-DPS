@@ -3,14 +3,17 @@ from __future__ import division
 import gym
 import numpy as np
 import math
+import time
 import os
 import random
 import BLM
 from cntk import distributed
+from cntk.train import *
 
 import cntk as C
 
-isFast = False
+isFast = True
+TOTAL_EPISODES = 2000 if isFast else 20000
 
 env = BLM.BLM(3)
 
@@ -18,11 +21,20 @@ STATE_COUNT = env.observation_space.shape
 ACTION_COUNT = env.action_space.n
 
 # Targetted reward
-REWARD_TARGET = 30 if isFast else 200
+REWARD_TARGET = 5000
 # Averaged over these these many episodes
 BATCH_SIZE_BASELINE = 20 if isFast else 50
 
-H = (STATE_COUNT + ACTION_COUNT) * 3 // 4 # hidden layer size
+H = 8 # hidden layer size
+
+MEMORY_CAPACITY = 100000 # KBW: Number of steps saved
+BATCH_SIZE = 32 # KBW: Relative amount of memory to reserve?? Keeping it low seems faster.
+
+GAMMA = 0.90
+
+MAX_EPSILON = 1 # KBW: Don't change!
+MIN_EPSILON = 0.001 # KBW: keep non-zero to stay a bit curious even when getting old
+LAMBDA = 0.001    # exponent of speed of decay
 
 class Brain:
     def __init__(self):
@@ -50,6 +62,14 @@ class Brain:
         lr = 0.00025
         lr_schedule = C.learning_rate_schedule(lr, C.UnitType.minibatch)
         learner = C.sgd(model.parameters, lr_schedule, gradient_clipping_threshold_per_sample=10)
+
+		# <Parallel>
+        distributed_learner = distributed.data_parallel_distributed_learner(
+			learner = learner,
+			num_quantization_bits = 32,
+			distributed_after = 0)
+		# </Parallel>
+
         trainer = C.Trainer(model, (loss, meas), learner)
 
         # CNTK: return trainer and loss as well
@@ -62,6 +82,9 @@ class Brain:
 
     def predict(self, s):
         return self.model.eval([s])
+
+    def save(self, path):
+        self.model.save(path)
 
 class Memory:   # stored as ( s, a, r, s_ )
     samples = []
@@ -78,16 +101,6 @@ class Memory:   # stored as ( s, a, r, s_ )
     def sample(self, n):
         n = min(n, len(self.samples))
         return random.sample(self.samples, n)
-
-
-MEMORY_CAPACITY = 1000000 # KBW: Number of steps saved
-BATCH_SIZE = 16 # KBW: Relative amount of memory to reserve?? Keeping it low seems faster.
-
-GAMMA = 0.95
-
-MAX_EPSILON = 1 # KBW: Don't change!
-MIN_EPSILON = 0.01 # KBW: keep non-zero to stay a bit curious even when getting old
-LAMBDA = 0.0001    # exponent of speed of decay
 
 class Agent:
     steps = 0
@@ -143,8 +156,8 @@ class Agent:
 
         self.brain.train(x, y)
 
-
-TOTAL_EPISODES = 3000 if isFast else 10000
+    def save(self, path):
+        self.brain.save(path)
 
 def run(agent):
     s = env.reset()
@@ -166,18 +179,37 @@ def run(agent):
         R += r
 
         if done:
-            print("  REWARD: %d" % R)
+            if env.debug:
+                print("  REWARD: %d" % R)
             return R
 
+startTime = time.time()
 agent = Agent()
-
 episode_number = 0
 reward_sum = 0
+averages = []
 while episode_number < TOTAL_EPISODES:
     reward = run(agent)
     reward_sum += reward
     episode_number += 1
+    if episode_number % 100 == 0:
+        print(episode_number)
     if episode_number % BATCH_SIZE_BASELINE == 0:
+        average = reward_sum / BATCH_SIZE_BASELINE
+        averages.append(average)
         print('Episode: %d, Average reward for episode %f.' % (episode_number,
-                                                               reward_sum / BATCH_SIZE_BASELINE))
+                                                               average))
         reward_sum = 0
+
+#for i in range(len(averages)):
+#    print(averages[i])
+print("%d" % (time.time() - startTime))
+
+agent.save(os.path.join(os.path.dirname(os.path.abspath(__file__)), "/model.cmf"))
+
+agent.epsilon = 0
+env.debug = True
+reward = run(agent)
+print("Reward: %d" % reward)
+
+distributed.Communicator.finalize()

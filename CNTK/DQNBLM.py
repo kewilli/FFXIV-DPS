@@ -12,8 +12,9 @@ from cntk.train import *
 
 import cntk as C
 
-isFast = True
+isFast = False
 TOTAL_EPISODES = 2000 if isFast else 20000
+OBSERVE = TOTAL_EPISODES / 2
 
 env = BLM.BLM(3)
 
@@ -23,18 +24,19 @@ ACTION_COUNT = env.action_space.n
 # Targetted reward
 REWARD_TARGET = 5000
 # Averaged over these these many episodes
-BATCH_SIZE_BASELINE = 20 if isFast else 50
+BATCH_SIZE_BASELINE = 50
 
-H = 8 # hidden layer size
+H = STATE_COUNT * 3 / 4 # hidden layer size
 
 MEMORY_CAPACITY = 100000 # KBW: Number of steps saved
-BATCH_SIZE = 32 # KBW: Relative amount of memory to reserve?? Keeping it low seems faster.
+BATCH_SIZE = 8 # KBW: Relative amount of memory to reserve?? Keeping it low seems faster.
 
-GAMMA = 0.90
+GAMMA = 0.95
 
-MAX_EPSILON = 1 # KBW: Don't change!
-MIN_EPSILON = 0.001 # KBW: keep non-zero to stay a bit curious even when getting old
-LAMBDA = 0.001    # exponent of speed of decay
+MAX_EPSILON = .99 # KBW: Don't change!
+MIN_EPSILON = 0.01 # KBW: keep non-zero to stay a bit curious even when getting old
+#TARGET_EPSILON = 0.01
+#LAMBDA = math.log((TARGET_EPSILON - MIN_EPSILON)/(MAX_EPSILON - MIN_EPSILON)) / -TOTAL_EPISODES  #0.001    # exponent of speed of decay
 
 class Brain:
     def __init__(self):
@@ -47,7 +49,7 @@ class Brain:
         q_target = C.sequence.input_variable(ACTION_COUNT, np.float32, name="q")
 
         # Following a style similar to Keras
-        l1 = C.layers.Dense(H, activation=C.relu)
+        l1 = C.layers.Dense(H, activation=C.sigmoid)
         l2 = C.layers.Dense(ACTION_COUNT)
         unbound_model = C.layers.Sequential([l1, l2])
         model = unbound_model(observation)
@@ -59,15 +61,15 @@ class Brain:
         meas = C.reduce_mean(C.square(model - q_target), axis=0)
 
         # optimizer
-        lr = 0.00025
+        lr = 1
         lr_schedule = C.learning_rate_schedule(lr, C.UnitType.minibatch)
         learner = C.sgd(model.parameters, lr_schedule, gradient_clipping_threshold_per_sample=10)
 
 		# <Parallel>
-        distributed_learner = distributed.data_parallel_distributed_learner(
-			learner = learner,
-			num_quantization_bits = 32,
-			distributed_after = 0)
+   #     distributed_learner = distributed.data_parallel_distributed_learner(
+			#learner = learner,
+			#num_quantization_bits = 32,
+			#distributed_after = 0)
 		# </Parallel>
 
         trainer = C.Trainer(model, (loss, meas), learner)
@@ -121,7 +123,9 @@ class Agent:
 
         # slowly decrease Epsilon based on our experience
         self.steps += 1
-        self.epsilon = MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * math.exp(-LAMBDA * self.steps)
+        
+        if (self.steps >= OBSERVE):
+            self.epsilon -= (MAX_EPSILON - MIN_EPSILON) / (TOTAL_EPISODES - OBSERVE) # MIN_EPSILON + (MAX_EPSILON - MIN_EPSILON) * math.exp(-LAMBDA * self.steps)
 
     def replay(self):
         batch = self.memory.sample(BATCH_SIZE)
@@ -189,16 +193,15 @@ episode_number = 0
 reward_sum = 0
 averages = []
 while episode_number < TOTAL_EPISODES:
+    special = episode_number % BATCH_SIZE_BASELINE == 0
+    env.debug = False #special
     reward = run(agent)
     reward_sum += reward
     episode_number += 1
-    if episode_number % 100 == 0:
-        print(episode_number)
-    if episode_number % BATCH_SIZE_BASELINE == 0:
+    if special:
         average = reward_sum / BATCH_SIZE_BASELINE
         averages.append(average)
-        print('Episode: %d, Average reward for episode %f.' % (episode_number,
-                                                               average))
+        print('Ep: %d, avg reward: %f' % (episode_number, average))
         reward_sum = 0
 
 #for i in range(len(averages)):
